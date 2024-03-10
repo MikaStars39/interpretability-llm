@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="WebServers">
+    <option name="servers">
+      <webServer id="159e7cd2-f446-4ef5-8c54-2bc5d8a20eab" name="llama">
+        <fileTransfer rootFolder="/home/qingyu_yin" accessType="SFTP" host="183.129.217.214" port="20219" sshConfigId="786c1915-b3bb-49ed-988f-87202e6de6a9" sshConfig="qingyu_yin@183.129.217.214:20219 password">
+          <advancedOptions>
+            <advancedOptions dataProtectionLevel="Private" passiveMode="true" shareSSLContext="true" />
+          </advancedOptions>
+        </fileTransfer>
+      </webServer>
+    </option>
+  </component>
+</project>
