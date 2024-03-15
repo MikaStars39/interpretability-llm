@@ -25,11 +25,11 @@ from transformers.utils import (
 )
 from transformers.models.llama.configuration_llama import LlamaConfig
 
-
 if is_flash_attn_2_available():
     from flash_attn import flash_attn_func, flash_attn_varlen_func
     from flash_attn.bert_padding import index_first_axis, pad_input, unpad_input  # noqa
 
+from utils import modified_rv_coefficient
 
 logger = logging.get_logger(__name__)
 
@@ -706,10 +706,14 @@ class LlamaDecoderLayer(nn.Module):
             warnings.warn(
                 "Passing `padding_mask` is deprecated and will be removed in v4.37. Please make sure use `attention_mask` instead.`"
             )
+        
+        RV_score = list()
 
         residual = hidden_states
 
         hidden_states = self.input_layernorm(hidden_states)
+
+        input_hidden_state = hidden_states
 
         # Self Attention
         hidden_states, self_attn_weights, present_key_value = self.self_attn(
@@ -722,12 +726,14 @@ class LlamaDecoderLayer(nn.Module):
             cache_position=cache_position,
             **kwargs,
         )
+
         hidden_states = residual + hidden_states
 
         # Fully Connected
         residual = hidden_states
         hidden_states = self.post_attention_layernorm(hidden_states)
         hidden_states = self.mlp(hidden_states)
+        RV_score.append(modified_rv_coefficient(residual, hidden_states))
         hidden_states = residual + hidden_states
 
         outputs = (hidden_states,)
@@ -737,6 +743,8 @@ class LlamaDecoderLayer(nn.Module):
 
         if use_cache:
             outputs += (present_key_value,)
+
+        output += (input_hidden_state,)
 
         return outputs
 
