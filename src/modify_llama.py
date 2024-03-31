@@ -29,7 +29,7 @@ if is_flash_attn_2_available():
     from flash_attn import flash_attn_func, flash_attn_varlen_func
     from flash_attn.bert_padding import index_first_axis, pad_input, unpad_input  # noqa
 
-from utils import modified_rv_coefficient
+from src.utils import modified_rv_coefficient
 
 logger = logging.get_logger(__name__)
 
