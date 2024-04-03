@@ -1,5 +1,8 @@
 /streamingllm
 src/__pycache__
+kv_test/__pycache__
 *.md
 *.sh
+*.json
+token.txt
 .gitignore
