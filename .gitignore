@@ -1,6 +1,8 @@
 /streamingllm
 src/__pycache__
 kv_test/__pycache__
+/results
+/logs
 *.md
 *.sh
 *.json
