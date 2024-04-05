@@ -60,8 +60,9 @@ def load_pg19(
 
 def load_mmlu(
     batch_size: int = 1,
+    model_type: str = "/home/qingyu_yin/model/gpt-neo-1.3B"
 ):
-    dataset = MMLUDataset()
+    dataset = MMLUDataset(model_type=model_type)
     dataloader = DataLoader(dataset, batch_size=batch_size)
     return dataloader
 

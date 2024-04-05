@@ -8,11 +8,31 @@ import torch
 import argparse
 import os
 
-from src.modify_gptneo import GPTNeoForCausalLM
+
 from src.dataset import load_wikitext
 
+def load_model(
+    model_type="auto",
+    model_name_or_path=None,
+):
+    if model_type == "auto":
+        from transformers import AutoModelForCausalLM
+        return AutoModelForCausalLM.from_pretrained(model_name_or_path)
+    
+    elif model_type == "modify":
+        from src.modify_gptneo import GPTNeoForCausalLM
+        return GPTNeoForCausalLM.from_pretrained(model_name_or_path)
+
+    elif model_type == "modify":
+        from src.modeling_gptneo import GPTNeoForCausalLM
+        return GPTNeoForCausalLM.from_pretrained(model_name_or_path)
+    
+    else:
+        raise("Not a correct type")
+        return None
+
 def train(args):
-    model = GPTNeoForCausalLM.from_pretrained(args.model_name_or_path)
+    model = load_model(args.model_type, args.model_name_or_path)
     tokenizer = AutoTokenizer.from_pretrained(args.model_name_or_path)
     tokenizer.pad_token = tokenizer.eos_token
 
@@ -48,6 +68,7 @@ if __name__ == "__main__":
         "--model_name_or_path", type=str, default="/home/qingyu_yin/model/gpt-neo-125m"
     )
     parser.add_argument("--data_name_or_path", type=str, default="kv_test/kv_pairs_100_100.json")
+    parser.add_argument("--model_type", type=str, default="Auto")
     parser.add_argument("--context_len", type=int, default=1024)
     parser.add_argument("--batch_size", type=int, default=1)
     parser.add_argument("--learning_rate", type=float, default=1e-4) 

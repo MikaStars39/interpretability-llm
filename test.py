@@ -30,6 +30,7 @@ def test_kv(args, model, skip = None):
             )
 
         outputs = tokenizer.decode(outputs[0], skip_special_tokens=True)
+        # print(outputs[len(query):len(query)+8])
         if answer == outputs[len(query):len(query)+8]:
             acc = acc + 1
     acc = acc / len(dataset)
@@ -60,7 +61,7 @@ def test_mmlu(args, model):
 
     tokenizer = AutoTokenizer.from_pretrained(args.tokenizer)
 
-    dataloader = load_mmlu()
+    dataloader = load_mmlu(model_type=args.tokenizer)
     acc = 0
     for ids, batch in tqdm(enumerate(dataloader)):
         query, answer = batch
@@ -93,17 +94,21 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     from src.modify_gptneo import GPTNeoForCausalLM
-    model = GPTNeoForCausalLM.from_pretrained(args.model_name_or_path).to("cuda")
+    # model = GPTNeoForCausalLM.from_pretrained(args.model_name_or_path).to("cuda")
 
     # for i in range(24, 10, -1):
     #     model.transformer.skip_list = [i]  # Set skip_from to the current value of i
     #     print(model.transformer.skip_from)
     #     test_kv(args, model, i)
     # test_mmlu(args, model)
-    test_kv(args, model)
+    # test_kv(args, model)
 
+    from src.modeling_llama import LlamaForCausalLM
 
-    model = AutoModelForCausalLM.from_pretrained("/home/qingyu_yin/model/gpt-neo-125M").to("cuda")
+    model = LlamaForCausalLM.from_pretrained(args.model_name_or_path).to("cuda")
+    # model = AutoModelForCausalLM.from_pretrained(args.model_name_or_path).to("cuda")
+
+    args.tokenizer = args.model_name_or_path
 
     test_kv(args, model)
     # test_mmlu(args, model)
