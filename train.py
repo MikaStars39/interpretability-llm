@@ -5,46 +5,77 @@ from datasets import load_dataset
 from transformers import Trainer, TrainingArguments
 import time
 import torch
+import argparse
+import os
 
-from src.modeling_gptneo import GPTNeoForCausalLM
-from src.utils import draw_rv_figure
 
-def tokenize_and_format(examples):
-    # 对输入进行编码
-    tokenized_inputs = tokenizer(examples["text"], truncation=True, padding="max_length", max_length=1024)
+from src.dataset import load_wikitext
+
+def load_model(
+    model_type="auto",
+    model_name_or_path=None,
+):
+    if model_type == "auto":
+        from transformers import AutoModelForCausalLM
+        return AutoModelForCausalLM.from_pretrained(model_name_or_path)
     
-    # 为因果语言模型准备标签，将输入数据偏移一位作为标签
-    tokenized_inputs["labels"] = tokenized_inputs["input_ids"]
+    elif model_type == "modify":
+        from src.modify_gptneo import GPTNeoForCausalLM
+        return GPTNeoForCausalLM.from_pretrained(model_name_or_path)
+
+    elif model_type == "modify":
+        from src.modeling_gptneo import GPTNeoForCausalLM
+        return GPTNeoForCausalLM.from_pretrained(model_name_or_path)
     
-    return tokenized_inputs
+    else:
+        raise("Not a correct type")
+        return None
 
+def train(args):
+    model = load_model(args.model_type, args.model_name_or_path)
+    tokenizer = AutoTokenizer.from_pretrained(args.model_name_or_path)
+    tokenizer.pad_token = tokenizer.eos_token
 
-model = GPTNeoForCausalLM.from_pretrained("/code/gpt-neo-1.3B")
-tokenizer = AutoTokenizer.from_pretrained("/code/gpt-neo-1.3B")
-tokenizer.pad_token = tokenizer.eos_token
+    def tokenize_and_format(examples):
+        tokenized_inputs = tokenizer(examples["text"], truncation=True, padding="max_length", max_length=1024)
+        tokenized_inputs["labels"] = tokenized_inputs["input_ids"] 
+        return tokenized_inputs
 
-dataset = load_dataset("/code/minipile", split="test")
-tokenized_dataset = dataset.map(tokenize_and_format, batched=True)
+    dataset = load_wikitext(data_type="test")
+    tokenized_dataset = dataset.map(tokenize_and_format, batched=True)
 
+    training_args = TrainingArguments(
+        output_dir="./results/" + str(time.time()),
+        num_train_epochs=1,
+        per_device_train_batch_size=args.batch_size,
+        warmup_steps=args.warmup_steps,
+        learning_rate = args.learning_rate,
+        weight_decay=0.01,
+        logging_dir="./logs",
+    )
 
-# 定义训练参数
-training_args = TrainingArguments(
-    output_dir="./results",
-    num_train_epochs=1,
-    per_device_train_batch_size=4,
-    warmup_steps=100,
-    learning_rate = 5e-5,
-    weight_decay=0.01,
-    logging_dir="./logs",
-)
+    trainer = Trainer(
+        model=model,
+        args=training_args,
+        train_dataset=tokenized_dataset,
+    )
 
-# 创建训练器并开始训练
-trainer = Trainer(
-    model=model,
-    args=training_args,
-    train_dataset=tokenized_dataset,
-)
+    trainer.train()
 
-trainer.train()
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser()
+    parser.add_argument(
+        "--model_name_or_path", type=str, default="/home/qingyu_yin/model/gpt-neo-125m"
+    )
+    parser.add_argument("--data_name_or_path", type=str, default="kv_test/kv_pairs_100_100.json")
+    parser.add_argument("--model_type", type=str, default="Auto")
+    parser.add_argument("--context_len", type=int, default=1024)
+    parser.add_argument("--batch_size", type=int, default=1)
+    parser.add_argument("--learning_rate", type=float, default=1e-4) 
+    parser.add_argument("--warmup_steps", type=int, default=200)
+    args = parser.parse_args()
 
+    os.system("export TOKENIZERS_PARALLELISM=false")
+
+    train(args)
 
