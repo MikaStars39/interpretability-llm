@@ -3,6 +3,7 @@ src/__pycache__
 kv_test/__pycache__
 /results
 /logs
+/wandb
 *.md
 *.sh
 *.json

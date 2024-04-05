@@ -8,15 +8,12 @@ from datasets import load_dataset
 
 from transformers import AutoTokenizer, AutoModelForCausalLM
 
-from src.modeling_gptneo import GPTNeoForCausalLM
-
-
 
 @torch.no_grad()
 def test_kv(args, model, skip = None):
     from kv_test.kv_generation import generate_kv
 
-    tokenizer = AutoTokenizer.from_pretrained(args.model_name_or_path)
+    tokenizer = AutoTokenizer.from_pretrained(args.tokenizer)
 
     dataset = generate_kv()
     acc = 0
@@ -43,7 +40,7 @@ def test_kv(args, model, skip = None):
 def test_ppl(args, model):
     from src.dataset import load_pg19
     model = GPTNeoForCausalLM.from_pretrained(args.model_name_or_path).to("cuda")
-    tokenizer = AutoTokenizer.from_pretrained(args.model_name_or_path) 
+    tokenizer = AutoTokenizer.from_pretrained(args.tokenizer) 
 
     dataloader = load_pg19(batch_size=args.batch_size)
 
@@ -61,7 +58,7 @@ def test_ppl(args, model):
 def test_mmlu(args, model):
     from src.dataset import load_mmlu
 
-    tokenizer = AutoTokenizer.from_pretrained(args.model_name_or_path)
+    tokenizer = AutoTokenizer.from_pretrained(args.tokenizer)
 
     dataloader = load_mmlu()
     acc = 0
@@ -86,6 +83,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "--model_name_or_path", type=str, default="/home/qingyu_yin/model/gpt-neo-1.3B"
     )
+    parser.add_argument("--tokenizer", type=str, default="/home/qingyu_yin/model/gpt-neo-1.3B")
     parser.add_argument("--data_name_or_path", type=str, default="kv_test/kv_pairs_100_100.json")
     parser.add_argument("--context_len", type=int, default=1024)
     parser.add_argument("--epoch", type=int, default=100)
@@ -94,15 +92,18 @@ if __name__ == "__main__":
     parser.add_argument("--batch_size", type=int, default=1)
     args = parser.parse_args()
 
+    from src.modify_gptneo import GPTNeoForCausalLM
     model = GPTNeoForCausalLM.from_pretrained(args.model_name_or_path).to("cuda")
 
-    for i in range(24, 10, -1):
-        model.transformer.skip_list = [i]  # Set skip_from to the current value of i
-        print(model.transformer.skip_from)
-        test_kv(args, model, i)
+    # for i in range(24, 10, -1):
+    #     model.transformer.skip_list = [i]  # Set skip_from to the current value of i
+    #     print(model.transformer.skip_from)
+    #     test_kv(args, model, i)
     # test_mmlu(args, model)
+    test_kv(args, model)
 
-    model = AutoModelForCausalLM.from_pretrained(args.model_name_or_path).to("cuda")
+
+    model = AutoModelForCausalLM.from_pretrained("/home/qingyu_yin/model/gpt-neo-125M").to("cuda")
 
     test_kv(args, model)
     # test_mmlu(args, model)
