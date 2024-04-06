@@ -326,6 +326,7 @@ class GPTNeoBlock(nn.Module):
         head_mask=None,
         use_cache=False,
         output_attentions=False,
+        skip="None",
     ):
         residual = hidden_states
         hidden_states = self.ln_1(hidden_states)
@@ -346,7 +347,10 @@ class GPTNeoBlock(nn.Module):
         hidden_states = self.ln_2(hidden_states)
         feed_forward_hidden_states = self.mlp(hidden_states)
         # residual connection
-        hidden_states = residual + feed_forward_hidden_states
+        if skip == None:
+            hidden_states = residual + feed_forward_hidden_states
+        else:
+            hidden_states = residual
 
         if use_cache:
             outputs = (hidden_states,) + outputs
@@ -408,7 +412,7 @@ class GPTNeoModel(GPTNeoPreTrainedModel):
         # Initialize weights and apply final processing
         self.post_init()
 
-        self.skip_list = [19, 20, 21, 22]
+        self.skip_list = [18, 19, 20, 21]
         self.skip_from = 24
 
     def get_input_embeddings(self):
@@ -520,11 +524,11 @@ class GPTNeoModel(GPTNeoPreTrainedModel):
         all_hidden_states = () if output_hidden_states else None
         for i, (block, layer_past) in enumerate(zip(self.h, past_key_values)):
 
+            skip = None
             if i in self.skip_list:
-                continue
-            
-            if i > self.skip_from:
-                continue
+                skip = 2
+                if self.skip_from == None:
+                    continue
 
             if output_hidden_states:
                 all_hidden_states = all_hidden_states + (hidden_states,)
@@ -553,6 +557,7 @@ class GPTNeoModel(GPTNeoPreTrainedModel):
                     head_mask=head_mask[i],
                     use_cache=use_cache,
                     output_attentions=output_attentions,
+                    skip=skip
                 )
 
             hidden_states = outputs[0]
@@ -633,12 +638,6 @@ class GPTNeoForCausalLM(GPTNeoPreTrainedModel):
 
         return model_inputs
 
-    @add_start_docstrings_to_model_forward(GPT_NEO_INPUTS_DOCSTRING)
-    @add_code_sample_docstrings(
-        checkpoint=_CHECKPOINT_FOR_DOC,
-        output_type=CausalLMOutputWithCrossAttentions,
-        config_class=_CONFIG_FOR_DOC,
-    )
     def forward(
         self,
         input_ids: Optional[torch.Tensor] = None,

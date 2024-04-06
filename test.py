@@ -40,7 +40,6 @@ def test_kv(args, model, skip = None):
 @torch.no_grad()
 def test_ppl(args, model):
     from src.dataset import load_pg19
-    model = GPTNeoForCausalLM.from_pretrained(args.model_name_or_path).to("cuda")
     tokenizer = AutoTokenizer.from_pretrained(args.tokenizer) 
 
     dataloader = load_pg19(batch_size=args.batch_size)
@@ -93,24 +92,35 @@ if __name__ == "__main__":
     parser.add_argument("--batch_size", type=int, default=1)
     args = parser.parse_args()
 
-    from src.modify_gptneo import GPTNeoForCausalLM
-    # model = GPTNeoForCausalLM.from_pretrained(args.model_name_or_path).to("cuda")
+    from src.modeling_gptneo import GPTNeoForCausalLM
+    model = GPTNeoForCausalLM.from_pretrained(args.model_name_or_path).to("cuda")
+    args.tokenizer = "/home/qingyu_yin/model/gpt-neo-1.3B"
+    for i in range(22, 1, -1):
+        model.transformer.skip_list.append(i)  # Set skip_from to the current value of i
+        print(model.transformer.skip_from)
+        test_kv(args, model)
+        test_mmlu(args, model)
+        print("####")
+        model.transformer.skip_from = None
+        test_kv(args, model)
+        test_mmlu(args, model)
+        model.transformer.skip_from = 24
+        print("####")
 
-    # for i in range(24, 10, -1):
-    #     model.transformer.skip_list = [i]  # Set skip_from to the current value of i
-    #     print(model.transformer.skip_from)
-    #     test_kv(args, model, i)
     # test_mmlu(args, model)
     # test_kv(args, model)
-
-    from src.modeling_llama import LlamaForCausalLM
-
-    model = LlamaForCausalLM.from_pretrained(args.model_name_or_path).to("cuda")
-    # model = AutoModelForCausalLM.from_pretrained(args.model_name_or_path).to("cuda")
-
-    args.tokenizer = args.model_name_or_path
-
-    test_kv(args, model)
     # test_mmlu(args, model)
+
+    # from src.modeling_llama import LlamaForCausalLM
+    # args.model_name_or_path = args.tokenizer
+    # model = LlamaForCausalLM.from_pretrained(args.model_name_or_path).to("cuda")
+    # model = GPTNeoForCausalLM.from_pretrained(args.model_name_or_path).to("cuda")
+
+    
+
+    # test_kv(args, model)
+    test_mmlu(args, model)
+
+    
 
     
