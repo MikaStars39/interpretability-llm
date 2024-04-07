@@ -412,7 +412,7 @@ class GPTNeoModel(GPTNeoPreTrainedModel):
         # Initialize weights and apply final processing
         self.post_init()
 
-        self.skip_list = [18, 19, 20, 21]
+        self.skip_list = []
         self.skip_from = 24
 
     def get_input_embeddings(self):

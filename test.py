@@ -35,6 +35,7 @@ def test_kv(args, model, skip = None):
             acc = acc + 1
     acc = acc / len(dataset)
     print(acc)
+    return acc
 
 
 @torch.no_grad()
@@ -76,6 +77,7 @@ def test_mmlu(args, model):
             acc = acc + 1
     acc = acc / 285
     print(acc)
+    return acc
 
 
 if __name__ == "__main__":
@@ -95,15 +97,21 @@ if __name__ == "__main__":
     from src.modeling_gptneo import GPTNeoForCausalLM
     model = GPTNeoForCausalLM.from_pretrained(args.model_name_or_path).to("cuda")
     args.tokenizer = "/home/qingyu_yin/model/gpt-neo-1.3B"
+    baseline_a = []
+    baseline_m = []
+    ours_a = []
+    ours_m = []
     for i in range(22, 1, -1):
         model.transformer.skip_list.append(i)  # Set skip_from to the current value of i
-        print(model.transformer.skip_from)
-        test_kv(args, model)
-        test_mmlu(args, model)
+        print(model.transformer.skip_list)
+        print("Ours:")
+        ours_a.append(test_kv(args, model))
+        ours_m.append(test_mmlu(args, model))
         print("####")
+        print("baseline:")
         model.transformer.skip_from = None
-        test_kv(args, model)
-        test_mmlu(args, model)
+        baseline_a.append(test_kv(args, model))
+        baseline_m.append(test_mmlu(args, model))
         model.transformer.skip_from = 24
         print("####")
 
@@ -116,7 +124,7 @@ if __name__ == "__main__":
     # model = LlamaForCausalLM.from_pretrained(args.model_name_or_path).to("cuda")
     # model = GPTNeoForCausalLM.from_pretrained(args.model_name_or_path).to("cuda")
 
-    
+    print(ours_a, ours_m, baseline_a, baseline_m)
 
     # test_kv(args, model)
     test_mmlu(args, model)

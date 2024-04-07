@@ -54,15 +54,28 @@ class Pg19Dataset(Dataset):
 
 def load_pg19(
     batch_size: int = 1,
+    model_type: str = "/home/qingyu_yin/model/gpt-neo-1.3B",
+    data_type: str = "test",
+    device: str = "cuda", 
 ):
-    dataset = Pg19Dataset()
+    dataset = Pg19Dataset(
+        model_type=model_type,
+        data_type=data_type,
+        device=device, 
+    )
     return DataLoader(dataset, batch_size=batch_size)
 
 def load_mmlu(
     batch_size: int = 1,
-    model_type: str = "/home/qingyu_yin/model/gpt-neo-1.3B"
+    model_type: str = "/home/qingyu_yin/model/gpt-neo-1.3B",
+    data_type: str = "dev",
+    device: str = "cuda",
 ):
-    dataset = MMLUDataset(model_type=model_type)
+    dataset = MMLUDataset(
+        model_type=model_type,
+        data_type=data_type,
+        device=device,
+        )
     dataloader = DataLoader(dataset, batch_size=batch_size)
     return dataloader
 
