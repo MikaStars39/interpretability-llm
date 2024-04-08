@@ -1,5 +1,6 @@
 import torch
 import matplotlib.pyplot as plt
+from einops import rearrange
 
 @torch.no_grad()
 def modified_rv_coefficient(X_i, X_j):
@@ -96,3 +97,25 @@ def patching_alternation(
             hidden_state_clean[:, position, head * head_dim:(head + 1) * head_dim] = hidden_state_corrupt[:, position, head * head_dim:(head + 1) * head_dim]
     
     return hidden_state_clean
+
+
+def param_free_attention(inputs, num_heads):
+    batch_size, sequence_length, hidden_size = inputs.size()
+    
+    assert hidden_size % num_heads == 0, "hidden_size must be divisible by num_heads"
+    head_dim = hidden_size // num_heads
+    
+    inputs = rearrange(inputs, 'b s (h d) -> b h s d', h=num_heads)
+    
+    Q = inputs
+    K = inputs
+    V = inputs
+    
+    scores = torch.matmul(Q, K.transpose(-2, -1)) / (head_dim ** 0.5)
+    attention = torch.softmax(scores, dim=-1)
+    
+    output = torch.matmul(attention, V)
+    
+    output = rearrange(output, 'b h s d -> b s (h d)')
+    
+    return output
