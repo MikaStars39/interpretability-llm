@@ -72,9 +72,9 @@ class PIQADataset(Dataset):
         sol2 = self.dataset[index]["sol2"]
         label = self.dataset[index]["label"]
         text = "You should answer a question with two options. Example: How do you eat? 0. use mouth. 1. use leg. We should choose the option 0. Question: "
-        text = text + goal + " 0. " + sol1 + " 1. " + sol2 + " We should choose the option "
+        text = text + goal + " 0. " + sol1 + " 1. " + sol2 + " We should choose the option " + str(label)
         text_ids = torch.tensor(self.tokenizer(text, truncation=True, max_length=self.length)["input_ids"], device=self.device)
-        return (text_ids, label)
+        return (text_ids[:-1].contiguous(), text_ids[-1:].contiguous())
 
     def __len__(self):
         return len(self.dataset)
@@ -121,9 +121,9 @@ class WinograndeDataset(Dataset):
         sol2 = self.dataset[index]["option2"]
         label = self.dataset[index]["answer"]
         text = "You should answer a question with two options. Example: Alice was a better teacher than Bob, so _ was a better teacher. 1. Alice 2. Bob We should choose the option 1. Question: "
-        text = text + goal + " 1. " + sol1 + " 2. " + sol2 + " We should choose the option "
+        text = text + goal + " 1. " + sol1 + " 2. " + sol2 + " We should choose the option " + str(label)
         text_ids = torch.tensor(self.tokenizer(text, truncation=True, max_length=self.length)["input_ids"], device=self.device)
-        return (text_ids, label)
+        return (text_ids[:-1].contiguous(), text_ids[-1:].contiguous())
 
     def __len__(self):
         return len(self.dataset)
@@ -146,9 +146,9 @@ class BoolQDataset(Dataset):
         question = self.dataset[index]["question"]
         label = self.dataset[index]["answer"]
         text = "You should answer a true-or-false question based on the given passage. EXAMPLE: Passage: Alice was a better teacher than Bob, so Bob was a better teacher. Question: Is it correct? Answer: We think it is false. Passage: "
-        text = text + passage + " Question: " + question + " We think it is "
+        text = text + passage + " Question: " + question + " We think it is " + str(label)
         text_ids = torch.tensor(self.tokenizer(text, truncation=True, max_length=self.length)["input_ids"], device=self.device)
-        return (text_ids, label)
+        return (text_ids[:-1].contiguous(), text_ids[-1:].contiguous())
 
     def __len__(self):
         return len(self.dataset)

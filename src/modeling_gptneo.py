@@ -37,6 +37,8 @@ from transformers.modeling_utils import PreTrainedModel
 from transformers.utils import add_code_sample_docstrings, add_start_docstrings, add_start_docstrings_to_model_forward, logging
 from transformers.models.gpt_neo.configuration_gpt_neo import GPTNeoConfig
 
+from src.utils import param_free_attention
+
 
 logger = logging.get_logger(__name__)
 
@@ -222,10 +224,20 @@ class GPTNeoSelfAttention(nn.Module):
         head_mask=None,
         use_cache=False,
         output_attentions=False,
+        skip=None,
     ):
         query = self.q_proj(hidden_states)
         key = self.k_proj(hidden_states)
         value = self.v_proj(hidden_states)
+
+        if skip == 2:
+            query = hidden_states
+            key = hidden_states
+            value = hidden_states
+        else:
+            query = self.q_proj(hidden_states)
+            key = self.k_proj(hidden_states)
+            value = self.v_proj(hidden_states)
 
         query = self._split_heads(query, self.num_heads, self.head_dim)
         key = self._split_heads(key, self.num_heads, self.head_dim)
@@ -280,6 +292,7 @@ class GPTNeoAttention(nn.Module):
         head_mask=None,
         use_cache=False,
         output_attentions=False,
+        skip=None,
     ):
         return self.attention(
             hidden_states,
@@ -288,6 +301,7 @@ class GPTNeoAttention(nn.Module):
             head_mask=head_mask,
             use_cache=use_cache,
             output_attentions=output_attentions,
+            skip=skip,
         )
 
 
@@ -317,6 +331,7 @@ class GPTNeoBlock(nn.Module):
         self.attn = GPTNeoAttention(config, layer_id)
         self.ln_2 = nn.LayerNorm(hidden_size, eps=config.layer_norm_epsilon)
         self.mlp = GPTNeoMLP(inner_dim, config)
+        self.num_heads = config.num_heads
 
     def forward(
         self,
@@ -337,6 +352,7 @@ class GPTNeoBlock(nn.Module):
             head_mask=head_mask,
             use_cache=use_cache,
             output_attentions=output_attentions,
+            skip=skip,
         )
         attn_output = attn_outputs[0]  # output_attn: a, present, (attentions)
         outputs = attn_outputs[1:]
@@ -413,7 +429,7 @@ class GPTNeoModel(GPTNeoPreTrainedModel):
         self.post_init()
 
         self.skip_list = []
-        self.skip_from = 24
+        self.skip_from = None
 
     def get_input_embeddings(self):
         return self.wte
@@ -526,7 +542,7 @@ class GPTNeoModel(GPTNeoPreTrainedModel):
 
             skip = None
             if i in self.skip_list:
-                skip = 2
+                skip = self.skip_from
                 if self.skip_from == None:
                     continue
 
