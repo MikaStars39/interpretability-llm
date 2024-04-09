@@ -38,7 +38,7 @@ from transformers.utils import (
     logging,
     replace_return_docstrings,
 )
-from transformers.models.Llama.configuration_llama import LlamaConfig
+from transformers.models.llama.configuration_llama import LlamaConfig
 
 
 if is_flash_attn_available():
@@ -407,7 +407,7 @@ class LlamaAttention(nn.Module):
             attn_output = attn_output.split(self.hidden_size // self.config.pretraining_tp, dim=2)
             o_proj_slices = self.o_proj.weight.split(self.hidden_size // self.config.pretraining_tp, dim=1)
             attn_output = sum([F.linear(attn_output[i], o_proj_slices[i]) for i in range(self.config.pretraining_tp)])
-        elif: skip != 2:
+        elif skip != 2:
             attn_output = self.o_proj(attn_output)
 
         if not output_attentions:
@@ -748,7 +748,6 @@ class LlamaModel(LlamaPreTrainedModel):
 
         return combined_attention_mask
 
-    @add_start_docstrings_to_model_forward(LLAMA_INPUTS_DOCSTRING)
     def forward(
         self,
         input_ids: torch.LongTensor = None,
