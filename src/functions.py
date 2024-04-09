@@ -96,8 +96,7 @@ def test_piqa(
             num_return_sequences=1, 
             pad_token_id=tokenizer.eos_token_id
             )
-        # print(answer, outputs[0, -1])
-        # outputs = tokenizer.decode(outputs[0], skip_special_tokens=True)
+        print(tokenizer.decode(outputs[0], skip_special_tokens=True))
         if answer == outputs[0, -1]:
             acc = acc + 1
     acc = acc / stop
