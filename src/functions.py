@@ -2,6 +2,37 @@ import torch
 from tqdm import tqdm
 
 @torch.no_grad()
+def test_qa(
+    args,
+    model,
+    tokenizer,
+    stop,
+):
+    from kv_test.qa_generation import load_qa
+
+    dataset = load_qa(
+        batch_size = 1,
+        model_type = args.tokenizer,
+        length= 1024, 
+    )
+    acc = 0
+
+    for ids, batch in tqdm(enumerate(dataset)):
+        if ids>= stop:
+            break
+        inputs, label = batch
+        outputs = model.generate(
+            inputs, 
+            max_length=inputs.size(-1) + label.size(-1), 
+            num_return_sequences=1, 
+            pad_token_id=tokenizer.eos_token_id
+            )
+        equal_elements = torch.eq(outputs[0, -label.size(-1):], label).sum().item()
+        acc += (equal_elements / label.size(-1))
+    acc = acc / stop
+    return acc
+
+@torch.no_grad()
 def test_kv(
     args,
     model,
@@ -10,9 +41,8 @@ def test_kv(
 ):
     from kv_test.kv_generation import generate_kv
 
-    dataset = generate_kv(length=99)
+    dataset = generate_kv(length=49)
     acc = 0
-    perplexity = 0
 
     for ids, batch in tqdm(enumerate(dataset)):
         answer, query = batch
@@ -96,7 +126,7 @@ def test_piqa(
             num_return_sequences=1, 
             pad_token_id=tokenizer.eos_token_id
             )
-        print(tokenizer.decode(outputs[0], skip_special_tokens=True))
+        # print(tokenizer.decode(outputs[0], skip_special_tokens=True))
         if answer == outputs[0, -1]:
             acc = acc + 1
     acc = acc / stop

@@ -226,10 +226,6 @@ class GPTNeoSelfAttention(nn.Module):
         output_attentions=False,
         skip=None,
     ):
-        query = self.q_proj(hidden_states)
-        key = self.k_proj(hidden_states)
-        value = self.v_proj(hidden_states)
-
         if skip == 2:
             query = hidden_states
             key = hidden_states
@@ -259,6 +255,7 @@ class GPTNeoSelfAttention(nn.Module):
         attn_output = self._merge_heads(attn_output, self.num_heads, self.head_dim)
         if skip != 2:
             attn_output = self.out_proj(attn_output)
+
         attn_output = self.resid_dropout(attn_output)
 
         outputs = (attn_output, present)

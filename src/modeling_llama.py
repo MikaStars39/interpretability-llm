@@ -40,6 +40,8 @@ from transformers.utils import (
 )
 from transformers.models.llama.configuration_llama import LlamaConfig
 
+from src.utils import param_free_attention
+
 
 if is_flash_attn_available():
     from flash_attn import flash_attn_func, flash_attn_varlen_func
@@ -346,8 +348,8 @@ class LlamaAttention(nn.Module):
             value_states = [F.linear(hidden_states, value_slices[i]) for i in range(self.config.pretraining_tp)]
             value_states = torch.cat(value_states, dim=-1)
         elif skip == 2:
-            query_states = hidden_states
-            key_states = hidden_states
+            query_states = self.q_proj(hidden_states)
+            key_states = self.k_proj(hidden_states)
             value_states = hidden_states
         else:
             query_states = self.q_proj(hidden_states)
@@ -407,7 +409,7 @@ class LlamaAttention(nn.Module):
             attn_output = attn_output.split(self.hidden_size // self.config.pretraining_tp, dim=2)
             o_proj_slices = self.o_proj.weight.split(self.hidden_size // self.config.pretraining_tp, dim=1)
             attn_output = sum([F.linear(attn_output[i], o_proj_slices[i]) for i in range(self.config.pretraining_tp)])
-        elif skip != 2:
+        else:
             attn_output = self.o_proj(attn_output)
 
         if not output_attentions:
@@ -607,6 +609,8 @@ class LlamaDecoderLayer(nn.Module):
         self.input_layernorm = LlamaRMSNorm(config.hidden_size, eps=config.rms_norm_eps)
         self.post_attention_layernorm = LlamaRMSNorm(config.hidden_size, eps=config.rms_norm_eps)
 
+        self.num_heads = config.num_attention_heads
+
     def forward(
         self,
         hidden_states: torch.Tensor,
@@ -634,21 +638,22 @@ class LlamaDecoderLayer(nn.Module):
 
         residual = hidden_states
 
-        if skip != None:
-            hidden_states = self.input_layernorm(hidden_states)
+        hidden_states = self.input_layernorm(hidden_states)
 
-            # Self Attention
-            hidden_states, self_attn_weights, present_key_value = self.self_attn(
-                hidden_states=hidden_states,
-                attention_mask=attention_mask,
-                position_ids=position_ids,
-                past_key_value=past_key_value,
-                output_attentions=output_attentions,
-                use_cache=use_cache,
-                padding_mask=padding_mask,
-                skip=skip,
-            )
-            
+        # Self Attention
+        hidden_states, self_attn_weights, present_key_value = self.self_attn(
+            hidden_states=hidden_states,
+            attention_mask=attention_mask,
+            position_ids=position_ids,
+            past_key_value=past_key_value,
+            output_attentions=output_attentions,
+            use_cache=use_cache,
+            padding_mask=padding_mask,
+            skip=skip,
+        )
+        if skip == None:
+            hidden_states = residual
+        else:
             hidden_states = residual + hidden_states
 
         # Fully Connected
@@ -827,6 +832,9 @@ class LlamaModel(LlamaPreTrainedModel):
         next_decoder_cache = () if use_cache else None
 
         for idx, decoder_layer in enumerate(self.layers):
+            skip = -1
+            if idx in self.skip_list:
+                skip = self.skip_from
             if output_hidden_states:
                 all_hidden_states += (hidden_states,)
 
@@ -853,9 +861,10 @@ class LlamaModel(LlamaPreTrainedModel):
                     output_attentions=output_attentions,
                     use_cache=use_cache,
                     padding_mask=padding_mask,
+                    skip=skip
                 )
-
-            hidden_states = layer_outputs[0]
+            if skip != None:
+                hidden_states = layer_outputs[0]
 
             if use_cache:
                 next_decoder_cache += (layer_outputs[2 if output_attentions else 1],)
@@ -910,8 +919,6 @@ class LlamaForCausalLM(LlamaPreTrainedModel):
     def get_decoder(self):
         return self.model
 
-    @add_start_docstrings_to_model_forward(LLAMA_INPUTS_DOCSTRING)
-    @replace_return_docstrings(output_type=CausalLMOutputWithPast, config_class=_CONFIG_FOR_DOC)
     def forward(
         self,
         input_ids: torch.LongTensor = None,

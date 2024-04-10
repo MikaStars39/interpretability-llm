@@ -38,7 +38,7 @@ def single_comparison(
     model,
     tokenizer,
     skip_list,
-    stop=599,
+    stop=19,
 ):
     # print("########")
     # acc = task(args, model, tokenizer, stop)
@@ -62,10 +62,10 @@ def single_comparison(
     model.model.skip_from = None
     acc = task(args, model, tokenizer, stop)
     print("direct:", acc) 
-    model.model.skip_list=[27, 26, 25, 28, 24, 29, 23, 21, 22, 20, 19, 18]
-    model.model.skip_from = 1
-    acc = task(args, model, tokenizer, stop)
-    print("ffn_skip", acc)
+    # model.model.skip_list=[27, 26, 25, 28, 24, 29, 23, 21, 22,]
+    # model.model.skip_from = 1
+    # acc = task(args, model, tokenizer, stop)
+    # print("ffn_skip", acc)
     model.model.skip_list=skip_list
     model.model.skip_from = 2
     acc = task(args, model, tokenizer, stop)
@@ -74,7 +74,7 @@ def single_comparison(
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("--task_name", type=str, default="kv_piqa_mmlu_lambada_boolq_winogrande")
+    parser.add_argument("--task_name", type=str, default="qa_kv_piqa_mmlu_lambada_boolq_winogrande")
     parser.add_argument("--model_name_or_path", type=str, default="/home/qingyu_yin/model/gpt-neo-1.3B")
     parser.add_argument("--tokenizer", type=str, default="/home/qingyu_yin/model/gpt-neo-1.3B")
     parser.add_argument("--data_name_or_path", type=str, default="kv_test/kv_pairs_100_100.json")
@@ -86,17 +86,17 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     model, tokenizer = load_model_and_tokenizer(args)
-    skip_list = [27, 26, 25, 28, 24, 29, 23, 21, 22]
+    skip_list = [27, 26, 25, 28, 24, 29, 30,]
 
-    if "piqa" in args.task_name:
-        from src.functions import test_piqa
+    if "qa" in args.task_name:
+        from src.functions import test_qa
         single_comparison(
             args,
-            test_piqa,
+            test_qa,
             model,
             tokenizer,
             skip_list,
-        )
+        )  
     
     if "kv" in args.task_name:
         from src.functions import test_kv
@@ -107,6 +107,17 @@ if __name__ == "__main__":
             tokenizer,
             skip_list,
         ) 
+
+    if "piqa" in args.task_name:
+        from src.functions import test_piqa
+        single_comparison(
+            args,
+            test_piqa,
+            model,
+            tokenizer,
+            skip_list,
+        )
+
     
     if "mmlu" in args.task_name:
         from src.functions import test_mmlu

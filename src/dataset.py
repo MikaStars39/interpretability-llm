@@ -11,7 +11,6 @@ class MMLUDataset(Dataset):
         device="cuda",
         length=1024,
     ):
-        super.__init__()
         self.dataset = load_dataset("/home/qingyu_yin/data/mmlu", "all", split=data_type)
         self.tokenizer = AutoTokenizer.from_pretrained(model_type)
         self.device = device
@@ -38,7 +37,6 @@ class Pg19Dataset(Dataset):
         device="cuda",
         length=1024,
     ):  
-        super.__init__()
         self.dataset = load_dataset("/home/qingyu_yin/data/pg19-test", "all", split=data_type)
         self.tokenizer = AutoTokenizer.from_pretrained(model_type)
         self.device = device
@@ -63,7 +61,6 @@ class PIQADataset(Dataset):
         device="cuda",
         length=1024
     ):
-        super.__init__()
         self.dataset = load_dataset("/home/qingyu_yin/data/piqa", split=data_type)
         self.tokenizer = AutoTokenizer.from_pretrained(model_type)
         self.device = device
@@ -90,7 +87,6 @@ class LambadaDataset(Dataset):
         device="cuda",
         length=1024
     ):
-        super.__init__()
         self.dataset = load_dataset("/home/qingyu_yin/data/lambada", split=data_type)
         self.tokenizer = AutoTokenizer.from_pretrained(model_type)
         self.device = device
@@ -114,7 +110,6 @@ class WinograndeDataset(Dataset):
         device="cuda",
         length=1024
     ):
-        super.__init__()
         self.dataset = load_dataset("/home/qingyu_yin/data/winogrande", "winogrande_debiased", split=data_type)
         self.tokenizer = AutoTokenizer.from_pretrained(model_type)
         self.device = device
@@ -141,7 +136,6 @@ class BoolQDataset(Dataset):
         device="cuda",
         length=1024
     ):
-        super.__init__()
         self.dataset = load_dataset("/home/qingyu_yin/data/winogrande", split=data_type)
         self.tokenizer = AutoTokenizer.from_pretrained(model_type)
         self.device = device
