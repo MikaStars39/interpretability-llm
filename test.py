@@ -8,6 +8,9 @@ def load_model_and_tokenizer(args, device="cuda"):
     if "gpt-neo-1.3B" in args.model_name_or_path:
         from src.modeling_gptneo import GPTNeoForCausalLM
         return GPTNeoForCausalLM.from_pretrained(args.model_name_or_path).to(device), AutoTokenizer.from_pretrained(args.tokenizer)
+    if "llama-2-7b-hf" in args.model_name_or_path:
+        from src.modeling_llama import LlamaForCausalLM
+        return LlamaForCausalLM.from_pretrained(args.model_name_or_path).to(device), AutoTokenizer.from_pretrained(args.tokenizer)
 
 # def test_across_rate(args, model):
 #     baseline_a = []
@@ -35,28 +38,43 @@ def single_comparison(
     model,
     tokenizer,
     skip_list,
-    stop=599,
+    stop=1,
 ):
+    # print("########")
+    # acc = task(args, model, tokenizer, stop)
+    # print("baseline:", acc)
+    # model.transformer.skip_list=skip_list
+    # model.transformer.skip_from = None
+    # acc = task(args, model, tokenizer, stop)
+    # print("direct:", acc) 
+    # model.transformer.skip_list=[27, 26, 25, 28, 24, 29, 23, 21, 22, 20, 19, 18]
+    # model.transformer.skip_from = 1
+    # acc = task(args, model, tokenizer, stop)
+    # print("ffn_skip", acc)
+    # model.transformer.skip_list=skip_list
+    # model.transformer.skip_from = 2
+    # acc = task(args, model, tokenizer, stop)
+    # print("ours:", acc)
     print("########")
     acc = task(args, model, tokenizer, stop)
     print("baseline:", acc)
-    model.transformer.skip_list=skip_list
-    model.transformer.skip_from = None
+    model.model.skip_list=skip_list
+    model.model.skip_from = None
     acc = task(args, model, tokenizer, stop)
     print("direct:", acc) 
-    model.transformer.skip_list=[17, 18, 19, 20, 21, 22]
-    model.transformer.skip_from = 1
+    model.model.skip_list=[27, 26, 25, 28, 24, 29, 23, 21, 22,]
+    model.model.skip_from = 1
     acc = task(args, model, tokenizer, stop)
     print("ffn_skip", acc)
-    model.transformer.skip_list=skip_list
-    model.transformer.skip_from = 2
+    model.model.skip_list=skip_list
+    model.model.skip_from = 2
     acc = task(args, model, tokenizer, stop)
-    print("ours:", acc) 
+    print("ours:", acc)  
 
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("--task_name", type=str, default="kv_piqa_mmlu_lambada_boolq_winogrande")
+    parser.add_argument("--task_name", type=str, default="qa_kv_piqa_mmlu_lambada_boolq_winogrande")
     parser.add_argument("--model_name_or_path", type=str, default="/home/qingyu_yin/model/gpt-neo-1.3B")
     parser.add_argument("--tokenizer", type=str, default="/home/qingyu_yin/model/gpt-neo-1.3B")
     parser.add_argument("--data_name_or_path", type=str, default="kv_test/kv_pairs_100_100.json")
@@ -67,19 +85,18 @@ if __name__ == "__main__":
     parser.add_argument("--batch_size", type=int, default=1)
     args = parser.parse_args()
 
-
-    from src.modeling_gptneo import GPTNeoForCausalLM
     model, tokenizer = load_model_and_tokenizer(args)
-    
-    if "piqa" in args.task_name:
-        from src.functions import test_piqa
+    skip_list = [27, 26, 25, 28, 24, 29, 30,]
+
+    if "qa" in args.task_name:
+        from src.functions import test_qa
         single_comparison(
             args,
-            test_piqa,
+            test_qa,
             model,
             tokenizer,
-            [19, 20, 21, 22],
-        )
+            skip_list,
+        )  
     
     if "kv" in args.task_name:
         from src.functions import test_kv
@@ -88,8 +105,19 @@ if __name__ == "__main__":
             test_kv,
             model,
             tokenizer,
-            [19, 20, 21, 22],
+            skip_list,
         ) 
+
+    if "piqa" in args.task_name:
+        from src.functions import test_piqa
+        single_comparison(
+            args,
+            test_piqa,
+            model,
+            tokenizer,
+            skip_list,
+        )
+
     
     if "mmlu" in args.task_name:
         from src.functions import test_mmlu
@@ -98,7 +126,7 @@ if __name__ == "__main__":
             test_mmlu,
             model,
             tokenizer,
-            [19, 20, 21, 22],
+            skip_list,
         ) 
     
     if "winogrande" in args.task_name:
@@ -108,7 +136,7 @@ if __name__ == "__main__":
             test_winogrande,
             model,
             tokenizer,
-            [19, 20, 21, 22],
+            skip_list,
         ) 
     
     if "boolq" in args.task_name:
@@ -118,7 +146,7 @@ if __name__ == "__main__":
             test_boolq,
             model,
             tokenizer,
-            [19, 20, 21, 22],
+            skip_list,
         ) 
     
     if "lambada" in args.task_name:
@@ -128,7 +156,7 @@ if __name__ == "__main__":
             test_lambada,
             model,
             tokenizer,
-            [19, 20, 21, 22],
+            skip_list,
         ) 
     
 

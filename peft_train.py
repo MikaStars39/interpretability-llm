@@ -1,54 +1,73 @@
 import time
 import os
-from transformers import GPTNeoConfig, Trainer, TrainingArguments, AutoTokenizer
+import transformers
+from transformers import Trainer, TrainingArguments, AutoTokenizer, AutoModelForCausalLM, AutoConfig
 from datasets import load_dataset
+from functools import partial
 from peft import LoraConfig, TaskType, get_peft_model
 
-from src.modeling_gptneo import GPTNeoForCausalLM
+from src.modeling_llama import LlamaForCausalLM, LlamaConfig
 
-# 加载预训练模型和配置
-model_name = "/home/qingyu_yin/model/gpt-neo-1.3B"
-config = GPTNeoConfig.from_pretrained(model_name, lora=True, lora_alpha=16, lora_r=8)
-model = GPTNeoForCausalLM.from_pretrained(model_name, config=config)
+def tokenize_fn(tokenizer, example):
+    # 分词
+    example = tokenizer(example['text'], truncation=True, padding='max_length', max_length=512)
+    print(example)
+    return example
 
-peft_config = LoraConfig(task_type=TaskType.CAUSAL_LM, inference_mode=False, r=8, lora_alpha=32, lora_dropout=0.1)
+def tokenize_fn_2(tokenizer, example):
+    context_length = 512
+    outputs = tokenizer(
+        example["text"],
+        truncation=True,
+        max_length=context_length,
+        return_tensors="pt",
+        pad_to_multiple_of=context_length,
+        padding=True,
+    )
+    return {"input_ids": outputs["input_ids"].view(-1, context_length), "labels": outputs["input_ids"].view(-1, context_length)}
 
-model = get_peft_model(model, peft_config)
-model.print_trainable_parameters()
 
-# 加载数据集
-dataset = load_dataset("/home/qingyu_yin/data/wikitext", "wikitext-2-raw-v1", split="train")
-tokenizer = AutoTokenizer.from_pretrained(model_name)
-tokenizer.pad_token = tokenizer.eos_token
 
-# 预处理数据集（根据需要进行修改）
-def tokenize_function(examples):
-    examples = tokenizer(examples["text"], padding="max_length", truncation=True, max_length=1024)
-    examples["labels"] = examples["input_ids"]
-    return examples
+if __name__ == "__main__":
 
-tokenized_dataset = dataset.map(tokenize_function, batched=True)
+    model_name = "/home/qingyu_yin/model/gpt-neo-1.3B"
+    config = AutoConfig.from_pretrained(model_name)
+    model = AutoModelForCausalLM.from_pretrained(model_name, config=config, device_map="auto")
+        # 加载数据集
+    dataset = load_dataset("/home/qingyu_yin/data/wikitext", "wikitext-103-v1", split="test")
+    tokenizer = AutoTokenizer.from_pretrained(model_name)
+    tokenizer.pad_token = tokenizer.eos_token
+    data_collator = transformers.DataCollatorForLanguageModeling(tokenizer=tokenizer, mlm=False)
 
-os.system("export TOKENIZERS_PARALLELISM=false")
+    dataset = dataset.map(partial(tokenize_fn_2, tokenizer), batched=True, num_proc=16)
 
-training_args = TrainingArguments(
-    output_dir="./results/" + str(time.time()),
-    learning_rate=1e-4,
-    per_device_train_batch_size=2,
-    gradient_accumulation_steps=4,
-    warmup_steps=100,
-    num_train_epochs=1,
-    weight_decay=0.01,
-    logging_dir="./logs/" + str(time.time()),
-    logging_steps=10,
-    fp16=True,
-)
 
-# 创建 Trainer 并开始训练
-trainer = Trainer(
-    model=model,
-    args=training_args,
-    train_dataset=tokenized_dataset,
-)
+    # peft_config = LoraConfig(task_type=TaskType.CAUSAL_LM, r=8, lora_alpha=32, lora_dropout=0, bias="none",)
 
-trainer.train()
+    # model = get_peft_model(model, peft_config)
+    # model.print_trainable_parameters()
+
+    training_args = TrainingArguments(
+        output_dir="./results/" + str(time.time()),
+        learning_rate=1e-4,
+        per_device_train_batch_size=1,
+        gradient_accumulation_steps=8,
+        warmup_steps=100,
+        num_train_epochs=1,
+        save_steps=100,
+        logging_dir="./logs/" + str(time.time()),
+        logging_steps=1,
+    )
+
+    # 创建 Trainer 并开始训练
+    trainer = Trainer(
+        model=model,
+        args=training_args,
+        train_dataset=dataset,
+    )
+
+    # 开始微调
+    trainer.train()
+
+
+

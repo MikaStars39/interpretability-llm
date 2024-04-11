@@ -36,7 +36,7 @@ class Pg19Dataset(Dataset):
         data_type="test",
         device="cuda",
         length=1024,
-    ):
+    ):  
         self.dataset = load_dataset("/home/qingyu_yin/data/pg19-test", "all", split=data_type)
         self.tokenizer = AutoTokenizer.from_pretrained(model_type)
         self.device = device

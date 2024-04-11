@@ -1,6 +1,46 @@
 import torch
 from tqdm import tqdm
 
+def compare_lists(list1, list2):
+    count = 0
+    for element in list1:
+        if element in list2:
+            count += 1
+            list2.remove(element)  # 从list2中移除匹配到的元素，以防止重复计数
+    return count
+
+@torch.no_grad()
+def test_qa(
+    args,
+    model,
+    tokenizer,
+    stop,
+):
+    from kv_test.qa_generation import load_qa
+
+    dataset = load_qa(
+        batch_size = 1,
+        model_type = args.tokenizer,
+        length= 1024, 
+    )
+    acc = 0
+
+    for ids, batch in tqdm(enumerate(dataset)):
+        if ids >= stop:
+            break
+        inputs, label = batch
+        outputs = model.generate(
+            inputs, 
+            max_length=inputs.size(-1) + label.size(-1), 
+            num_return_sequences=1, 
+            pad_token_id=tokenizer.eos_token_id
+            )
+
+        equal_elements = compare_lists(list(outputs[0, -label.size(-1):]), list(label[0]))
+        acc += (equal_elements / label.size(-1))
+    acc = acc / stop
+    return acc
+
 @torch.no_grad()
 def test_kv(
     args,
@@ -10,9 +50,8 @@ def test_kv(
 ):
     from kv_test.kv_generation import generate_kv
 
-    dataset = generate_kv(length=99)
+    dataset = generate_kv(length=49)
     acc = 0
-    perplexity = 0
 
     for ids, batch in tqdm(enumerate(dataset)):
         answer, query = batch
@@ -96,8 +135,7 @@ def test_piqa(
             num_return_sequences=1, 
             pad_token_id=tokenizer.eos_token_id
             )
-        # print(answer, outputs[0, -1])
-        # outputs = tokenizer.decode(outputs[0], skip_special_tokens=True)
+        # print(tokenizer.decode(outputs[0], skip_special_tokens=True))
         if answer == outputs[0, -1]:
             acc = acc + 1
     acc = acc / stop

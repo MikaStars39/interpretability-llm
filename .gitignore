@@ -4,6 +4,7 @@ kv_test/__pycache__
 /results
 /logs
 /wandb
+/gated_linear_attention
 *.md
 *.sh
 *.json
