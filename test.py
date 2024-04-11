@@ -38,7 +38,7 @@ def single_comparison(
     model,
     tokenizer,
     skip_list,
-    stop=19,
+    stop=1,
 ):
     # print("########")
     # acc = task(args, model, tokenizer, stop)
@@ -62,10 +62,10 @@ def single_comparison(
     model.model.skip_from = None
     acc = task(args, model, tokenizer, stop)
     print("direct:", acc) 
-    # model.model.skip_list=[27, 26, 25, 28, 24, 29, 23, 21, 22,]
-    # model.model.skip_from = 1
-    # acc = task(args, model, tokenizer, stop)
-    # print("ffn_skip", acc)
+    model.model.skip_list=[27, 26, 25, 28, 24, 29, 23, 21, 22,]
+    model.model.skip_from = 1
+    acc = task(args, model, tokenizer, stop)
+    print("ffn_skip", acc)
     model.model.skip_list=skip_list
     model.model.skip_from = 2
     acc = task(args, model, tokenizer, stop)

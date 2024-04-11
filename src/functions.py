@@ -1,6 +1,14 @@
 import torch
 from tqdm import tqdm
 
+def compare_lists(list1, list2):
+    count = 0
+    for element in list1:
+        if element in list2:
+            count += 1
+            list2.remove(element)  # 从list2中移除匹配到的元素，以防止重复计数
+    return count
+
 @torch.no_grad()
 def test_qa(
     args,
@@ -18,7 +26,7 @@ def test_qa(
     acc = 0
 
     for ids, batch in tqdm(enumerate(dataset)):
-        if ids>= stop:
+        if ids >= stop:
             break
         inputs, label = batch
         outputs = model.generate(
@@ -27,7 +35,8 @@ def test_qa(
             num_return_sequences=1, 
             pad_token_id=tokenizer.eos_token_id
             )
-        equal_elements = torch.eq(outputs[0, -label.size(-1):], label).sum().item()
+
+        equal_elements = compare_lists(list(outputs[0, -label.size(-1):]), list(label[0]))
         acc += (equal_elements / label.size(-1))
     acc = acc / stop
     return acc
