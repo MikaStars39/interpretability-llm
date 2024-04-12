@@ -383,9 +383,7 @@ class LlamaAttention(nn.Module):
                     f"Attention mask should be of size {(bsz, 1, q_len, kv_seq_len)}, but is {attention_mask.size()}"
                 )
             if skip == 2:
-                if idx % 2 == 1:
                     attn_weights = attn_weights + local_mask
-                else:
                     attn_weights = attn_weights + cross_mask
             else:
                 attn_weights = attn_weights + attention_mask
@@ -656,7 +654,7 @@ class LlamaModel(LlamaPreTrainedModel):
         all_self_attns = () if output_attentions else None
         next_decoder_cache = () if use_cache else None
 
-        local_mask, cross_mask = generate_mask(attention_mask)
+        local_mask, cross_mask = generate_mask(attention_mask, attention_mask.size(-1))
 
         for idx, decoder_layer in enumerate(self.layers):
             skip = -1

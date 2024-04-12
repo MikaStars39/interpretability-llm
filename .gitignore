@@ -9,4 +9,3 @@ kv_test/__pycache__
 *.sh
 *.json
 token.txt
-.gitignore

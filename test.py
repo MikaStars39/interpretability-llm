@@ -38,7 +38,7 @@ def single_comparison(
     model,
     tokenizer,
     skip_list,
-    stop=1,
+    stop=199,
 ):
     # print("########")
     # acc = task(args, model, tokenizer, stop)
@@ -74,7 +74,7 @@ def single_comparison(
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("--task_name", type=str, default="qa_kv_piqa_mmlu_lambada_boolq_winogrande")
+    parser.add_argument("--task_name", type=str, default="piqa_mmlu_lambada_boolq_winogrande")
     parser.add_argument("--model_name_or_path", type=str, default="/home/qingyu_yin/model/gpt-neo-1.3B")
     parser.add_argument("--tokenizer", type=str, default="/home/qingyu_yin/model/gpt-neo-1.3B")
     parser.add_argument("--data_name_or_path", type=str, default="kv_test/kv_pairs_100_100.json")
@@ -86,9 +86,9 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     model, tokenizer = load_model_and_tokenizer(args)
-    skip_list = [27, 26, 25, 28, 24, 29, 30,]
+    skip_list = [_ for _ in range(1, 31)]
 
-    if "qa" in args.task_name:
+    if "QA" in args.task_name:
         from src.functions import test_qa
         single_comparison(
             args,
