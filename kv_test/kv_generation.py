@@ -5,6 +5,7 @@ import string
 def generate_kv(
     data_size:int = 1,
     length:int = 49,
+    key_length: int = 16,
 ):
     kv_pairs = []
     for ids in range(length):
@@ -13,8 +14,8 @@ def generate_kv(
         all_queries += example
         all_values = []
         for pos in range(length):
-            key = ''.join(random.choices(string.ascii_letters + string.digits, k=8))
-            value = ''.join(random.choices(string.ascii_letters + string.digits, k=8))
+            key = ''.join(random.choices(string.ascii_letters + string.digits, k=key_length))
+            value = ''.join(random.choices(string.ascii_letters + string.digits, k=key_length))
             if ids == pos:
                 ans_key = key
                 ans_value = value

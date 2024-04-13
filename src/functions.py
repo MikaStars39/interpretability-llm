@@ -50,11 +50,12 @@ def test_kv(
 ):
     from kv_test.kv_generation import generate_kv
 
-    dataset = generate_kv(length=49)
+    dataset = generate_kv(length=16)
     acc = 0
 
     for ids, batch in tqdm(enumerate(dataset)):
-        answer, query = batch
+        label, query = batch
+        label = tokenizer(label, return_tensors="pt")["input_ids"].to("cuda")
         inputs = tokenizer(query, return_tensors="pt").to("cuda")
         outputs = model.generate(
             inputs["input_ids"], 
@@ -63,10 +64,9 @@ def test_kv(
             pad_token_id=tokenizer.eos_token_id
             )
 
-        outputs = tokenizer.decode(outputs[0], skip_special_tokens=True)
         # print(outputs[len(query):len(query)+8])
-        if answer == outputs[len(query):len(query)+8]:
-            acc = acc + 1
+        equal_elements = compare_lists(list(outputs[0, -label.size(-1):]), list(label[0]))
+        acc += (equal_elements / label.size(-1))
     acc = acc / len(dataset)
     return acc
 

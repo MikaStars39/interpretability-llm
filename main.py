@@ -1,15 +1,17 @@
 import torch
 from transformers import AutoTokenizer
-from src.modeling_llama import LlamaForCausalLM
+from src.modeling_qwen2 import Qwen2ForCausalLM
 
-model = LlamaForCausalLM.from_pretrained("/home/qingyu_yin/model/llama-2-7b-hf").to("cuda")
-tokenizer = AutoTokenizer.from_pretrained("/home/qingyu_yin/model/llama-2-7b-hf")
+model = Qwen2ForCausalLM.from_pretrained("/home/qingyu_yin/model/Qwen1.5-1.8B").to("cuda")
+tokenizer = AutoTokenizer.from_pretrained("/home/qingyu_yin/model/Qwen1.5-1.8B")
 
-text = "Based on our previous analysis, the role of the self-attention mechanism within the deep layers is significant, as they possess the capability to aggregate information across various positions."
-
-inputs = tokenizer(text, return_tensors="pt").to("cuda")
-
+prompt = "Hey, are you conscious? Can you talk to me?"
+inputs = tokenizer(prompt, return_tensors="pt").to("cuda")
 inputs["labels"] = inputs["input_ids"]
-model.model.skip_list = [24, 25, 26, 27, 28]
-model.model.skip_from = 1
-print(model(**inputs).loss)
+
+model.model.skip_list = [21, 22, 23, 24]
+model.model.skip_from = "linear"
+
+outputs = model.forward(**inputs)
+
+print(outputs.loss)

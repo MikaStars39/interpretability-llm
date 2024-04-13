@@ -38,8 +38,10 @@ def single_comparison(
     model,
     tokenizer,
     skip_list,
-    stop=199,
+    stop=299,
 ):
+    if str(task) == "test_qa":
+        stop = 1
     # print("########")
     # acc = task(args, model, tokenizer, stop)
     # print("baseline:", acc)
@@ -62,11 +64,11 @@ def single_comparison(
     model.model.skip_from = None
     acc = task(args, model, tokenizer, stop)
     print("direct:", acc) 
-    model.model.skip_list=[27, 26, 25, 28, 24, 29, 23, 21, 22,]
+    model.model.skip_list = [27, 26, 25, 28, 24, 29, 23, 21, 22,]
     model.model.skip_from = 1
     acc = task(args, model, tokenizer, stop)
     print("ffn_skip", acc)
-    model.model.skip_list=skip_list
+    model.model.skip_list = [27, 26, 25, 28, 24, 29, 23, 21, 22,]
     model.model.skip_from = 2
     acc = task(args, model, tokenizer, stop)
     print("ours:", acc)  
@@ -74,7 +76,7 @@ def single_comparison(
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("--task_name", type=str, default="piqa_mmlu_lambada_boolq_winogrande")
+    parser.add_argument("--task_name", type=str, default="kv_piqa_mmlu_lambada_boolq_winogrande")
     parser.add_argument("--model_name_or_path", type=str, default="/home/qingyu_yin/model/gpt-neo-1.3B")
     parser.add_argument("--tokenizer", type=str, default="/home/qingyu_yin/model/gpt-neo-1.3B")
     parser.add_argument("--data_name_or_path", type=str, default="kv_test/kv_pairs_100_100.json")
@@ -86,7 +88,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     model, tokenizer = load_model_and_tokenizer(args)
-    skip_list = [_ for _ in range(1, 31)]
+    skip_list = [_ for _ in range(24, 30)]
 
     if "QA" in args.task_name:
         from src.functions import test_qa
