@@ -1,63 +1,73 @@
 # import gpt2-small
-
-from transformers import AutoTokenizer
-from datasets import load_dataset
-from transformers import Trainer, TrainingArguments
 import time
 import torch
 import argparse
 import os
 
+from transformers import AutoTokenizer, AutoConfig
+from datasets import load_dataset
+from transformers import Trainer, TrainingArguments, DataCollatorForLanguageModeling
+from torch.distributed import barrier
 
-from src.dataset import load_wikitext
+from src.modeling_qwen2 import Qwen2ForCausalLM
 
-def load_model(
-    model_type="auto",
-    model_name_or_path=None,
-):
-    if model_type == "auto":
-        from transformers import AutoModelForCausalLM
-        return AutoModelForCausalLM.from_pretrained(model_name_or_path)
-    
-    elif model_type == "modify":
-        from src.modify_gptneo import GPTNeoForCausalLM
-        return GPTNeoForCausalLM.from_pretrained(model_name_or_path)
-
-    elif model_type == "modify":
-        from src.modeling_gptneo import GPTNeoForCausalLM
-        return GPTNeoForCausalLM.from_pretrained(model_name_or_path)
-    
-    else:
-        raise("Not a correct type")
-        return None
 
 def train(args):
-    model = load_model(args.model_type, args.model_name_or_path)
-    tokenizer = AutoTokenizer.from_pretrained(args.model_name_or_path)
+    model_name = "/home/qingyu_yin/model/Qwen1.5-1.8B"
+    
+    model_config = AutoConfig.from_pretrained(model_name)
+    model = Qwen2ForCausalLM.from_pretrained(
+        model_name,
+        config=model_config,
+        torch_dtype=torch.float16
+    )
+
+    model.model.skip_list = [20]
+    model.model.skip_from = "linear"
+
+    tokenizer = AutoTokenizer.from_pretrained(
+        model_name,
+        model_max_length=args.context_len,
+        padding_side="right",
+        use_fast=True,
+    )
+
     tokenizer.pad_token = tokenizer.eos_token
+
+    rank = int(os.environ.get('RANK', -1))
+    if rank > 0:
+        barrier()
 
     def tokenize_and_format(examples):
         tokenized_inputs = tokenizer(examples["text"], truncation=True, padding="max_length", max_length=1024)
         tokenized_inputs["labels"] = tokenized_inputs["input_ids"] 
         return tokenized_inputs
 
-    dataset = load_wikitext(data_type="test")
-    tokenized_dataset = dataset.map(tokenize_and_format, batched=True)
+    dataset = load_dataset(args.data_name_or_path, "wikitext-103-v1", split="test")
+    dataset = dataset.map(tokenize_and_format, batched=True, num_proc=16)
+
+    if rank == 0:
+        barrier()
+
+    print(dataset)
 
     training_args = TrainingArguments(
         output_dir="./results/" + str(time.time()),
         num_train_epochs=1,
         per_device_train_batch_size=args.batch_size,
+        gradient_accumulation_steps=16,
         warmup_steps=args.warmup_steps,
         learning_rate = args.learning_rate,
-        weight_decay=0.01,
+        logging_steps=1,
+        fp16=True,
+        fp16_backend="amp",
         logging_dir="./logs",
     )
 
     trainer = Trainer(
         model=model,
         args=training_args,
-        train_dataset=tokenized_dataset,
+        train_dataset=dataset,
     )
 
     trainer.train()
@@ -67,7 +77,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "--model_name_or_path", type=str, default="/home/qingyu_yin/model/gpt-neo-125m"
     )
-    parser.add_argument("--data_name_or_path", type=str, default="kv_test/kv_pairs_100_100.json")
+    parser.add_argument("--data_name_or_path", type=str, default="/home/qingyu_yin/data/wikitext")
     parser.add_argument("--model_type", type=str, default="Auto")
     parser.add_argument("--context_len", type=int, default=1024)
     parser.add_argument("--batch_size", type=int, default=1)
@@ -75,7 +85,7 @@ if __name__ == "__main__":
     parser.add_argument("--warmup_steps", type=int, default=200)
     args = parser.parse_args()
 
-    os.system("export TOKENIZERS_PARALLELISM=false")
+    os.system("export TOKENIZERS_PARALLELISM=true")
 
     train(args)
 
