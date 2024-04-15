@@ -1,12 +1,17 @@
 import torch
 import plotly.express as px
+import time
 from transformer_lens import utils, HookedTransformer, FactoredMatrix
 from functools import partial
+from jaxtyping import Float
 
 def imshow(tensor, renderer=None, xaxis="", yaxis="", **kwargs):
-    px.imshow(utils.to_numpy(tensor), color_continuous_midpoint=0.0, color_continuous_scale="RdBu", labels={"x":xaxis, "y":yaxis}, **kwargs).show(renderer)
+    current_time = datetime.now().strftime("%Y%m%d_%H%M%S")
+    filename = f"{current_time}_image.png"
+    figure = px.imshow(utils.to_numpy(tensor), color_continuous_midpoint=0.0, color_continuous_scale="RdBu", labels={"x":xaxis, "y":yaxis}, **kwargs).show(renderer)
+    figure.write_image(filename)
 
-def patching():
+def patching(model: HookedTransformer):
     clean_prompt = "After John and Mary went to the store, Mary gave a bottle of milk to"
     corrupted_prompt = "After John and Mary went to the store, John gave a bottle of milk to"
 
@@ -29,6 +34,7 @@ def patching():
     corrupted_logits = model(corrupted_tokens)
     corrupted_logit_diff = logits_to_logit_diff(corrupted_logits)
     print(f"Corrupted logit difference: {corrupted_logit_diff.item():.3f}")
+    
     # We define a residual stream patching hook
     # We choose to act on the residual stream at the start of the layer, so we call it resid_pre
     # The type annotations are a guide to the reader and are not necessary
@@ -58,15 +64,14 @@ def patching():
             patched_logit_diff = logits_to_logit_diff(patched_logits).detach()
             # Store the result, normalizing by the clean and corrupted logit difference so it's between 0 and 1 (ish)
             ioi_patching_result[layer, position] = (patched_logit_diff - corrupted_logit_diff)/(clean_logit_diff - corrupted_logit_diff)
+    token_labels = [f"{token}_{index}" for index, token in enumerate(model.to_str_tokens(clean_tokens))]
+    imshow(ioi_patching_result, x=token_labels, xaxis="Position", yaxis="Layer", title="Normalized Logit Difference After Patching Residual Stream on the IOI Task")
 
 @torch.no_grad()
 def circuits():
     device = utils.get_device()
     model = HookedTransformer.from_pretrained("qwen-7b-chat", device=device)
-
-    model_description_text = """## Loading Models HookedTransformer comes loaded with >40 open source GPT-style models. You can load any of them in with `HookedTransformer.from_pretrained(MODEL_NAME)`. See my explainer for documentation of all supported models, and this table for hyper-parameters and the name used to load them. Each model is loaded into the consistent HookedTransformer architecture, designed to be clean, consistent and interpretability-friendly.  For this demo notebook we'll look at GPT-2 Small, an 80M parameter model. To try the model the model out, let's find the loss on this paragraph!"""
-    loss = model(model_description_text, return_type="loss")
-    print("Model loss:", loss)
+    patching(model)
 
 if __name__ == "__main__":
     circuits()
