@@ -1,76 +1,110 @@
 import torch
 import plotly.express as px
-import time
+import tqdm
+import einops
+import transformer_lens.patching as pt
+from transformers import AutoModelForCausalLM, AutoTokenizer
 from transformer_lens import utils, HookedTransformer, FactoredMatrix
+from transformer_lens.hook_points import (
+    HookPoint,
+) 
 from functools import partial
 from jaxtyping import Float
+from datetime import datetime
+from neel_plotly.plot import imshow
 
-def imshow(tensor, renderer=None, xaxis="", yaxis="", **kwargs):
+def save_imshow(fig, filename=None):
     current_time = datetime.now().strftime("%Y%m%d_%H%M%S")
-    filename = f"{current_time}_image.png"
-    figure = px.imshow(utils.to_numpy(tensor), color_continuous_midpoint=0.0, color_continuous_scale="RdBu", labels={"x":xaxis, "y":yaxis}, **kwargs).show(renderer)
-    figure.write_image(filename)
+    if filename == None:
+        filename = f"image/{current_time}_image.png"
+    fig.write_image(filename)
+
+def draw_attention_heads(model, cache, tokens):
+    for layer in tqdm.tqdm(range(model.cfg.n_layers)):
+        attention_pattern = cache["pattern", layer, "attn"][0]
+        for head in range(model.cfg.n_heads):
+            head_attn = attention_pattern[head]
+            fig = imshow(
+                head_attn, 
+                xaxis="Position", yaxis="Position", 
+                x=tokens,
+                title="Layer " + str(layer) + " Head " + str(head),
+                return_fig=True,
+            )
+            save_imshow(fig, "image/head/" + "Layer" + str(layer) + "Head" + str(head) + ".png")
+
+    
+def get_act_block_every_pos(
+    model: HookedTransformer,
+    corrupted_tokens,
+    clean_cache,
+    ioi_metric,
+):
+    every_block_result = pt.get_act_patch_block_every(model, corrupted_tokens, clean_cache, ioi_metric)
+    figure = imshow(every_block_result, 
+    facet_col=0, 
+    facet_labels=["Residual Stream", "Attn Output", "MLP Output"], 
+    title="Activation Patching Per Block", 
+    xaxis="Position", yaxis="Layer", 
+    zmax=1, zmin=-1, 
+    x= [f"{tok}_{i}" for i, tok in enumerate(model.to_str_tokens(corrupted_tokens[0]))],
+    return_fig=True,
+    )
+    save_imshow(figure)
+
+def get_all_head(
+    model: HookedTransformer,
+    corrupted_tokens,
+    clean_cache,
+    ioi_metric,
+):
+    every_head_all_pos_act_patch_result = pt.get_act_patch_attn_head_all_pos_every(model, corrupted_tokens, clean_cache, ioi_metric)
+    figure = imshow(
+        every_head_all_pos_act_patch_result, 
+        facet_col=0, facet_labels=["Output", "Query", "Key", "Value", "Pattern"], 
+        title="Activation Patching Per Head (All Pos)", 
+        xaxis="Head", yaxis="Layer", zmax=1, zmin=-1,
+        return_fig=True,
+    )
+    save_imshow(figure)
 
 def patching(model: HookedTransformer):
-    clean_prompt = "After John and Mary went to the store, Mary gave a bottle of milk to"
-    corrupted_prompt = "After John and Mary went to the store, John gave a bottle of milk to"
 
+    clean_prompt = "0*(1+2-3-4-5)+1+2=3, (2-1+3)*(3+4-2-4-5-2)+1+0=1, (3+2-5)*(3-1-4+2+5+2-4)+1+0="
+    corrupted_prompt = "0*(2+1-4-3-3)+2+0=2, (1-2+1)*(2+3-3-8-4-1)+0+2=2, (4+3-7)*(1-2-5+9+1+3-2)+2+0="
     clean_tokens = model.to_tokens(clean_prompt)
     corrupted_tokens = model.to_tokens(corrupted_prompt)
 
-    def logits_to_logit_diff(logits, correct_answer=" John", incorrect_answer=" Mary"):
+    def logits_to_logit_diff(logits, correct_answer="1", incorrect_answer="2"):
         # model.to_single_token maps a string value of a single token to the token index for that token
         # If the string is not a single token, it raises an error.
         correct_index = model.to_single_token(correct_answer)
         incorrect_index = model.to_single_token(incorrect_answer)
         return logits[0, -1, correct_index] - logits[0, -1, incorrect_index]
 
-    # We run on the clean prompt with the cache so we store activations to patch in later.
     clean_logits, clean_cache = model.run_with_cache(clean_tokens)
     clean_logit_diff = logits_to_logit_diff(clean_logits)
     print(f"Clean logit difference: {clean_logit_diff.item():.3f}")
 
-    # We don't need to cache on the corrupted prompt.
-    corrupted_logits = model(corrupted_tokens)
+    # draw_attention_heads(model, clean_cache, [f"{tok}_{i}" for i, tok in enumerate(model.to_str_tokens(clean_tokens[0]))])
+
+    corrupted_logits, corrupted_cache = model.run_with_cache(corrupted_tokens)
     corrupted_logit_diff = logits_to_logit_diff(corrupted_logits)
     print(f"Corrupted logit difference: {corrupted_logit_diff.item():.3f}")
     
-    # We define a residual stream patching hook
-    # We choose to act on the residual stream at the start of the layer, so we call it resid_pre
-    # The type annotations are a guide to the reader and are not necessary
-    def residual_stream_patching_hook(
-        resid_pre: Float[torch.Tensor, "batch pos d_model"],
-        hook: HookPoint,
-        position: int
-    ) -> Float[torch.Tensor, "batch pos d_model"]:
-        # Each HookPoint has a name attribute giving the name of the hook.
-        clean_resid_pre = clean_cache[hook.name]
-        resid_pre[:, position, :] = clean_resid_pre[:, position, :]
-        return resid_pre
-
-    # We make a tensor to store the results for each patching run. We put it on the model's device to avoid needing to move things between the GPU and CPU, which can be slow.
-    num_positions = len(clean_tokens[0])
-    ioi_patching_result = torch.zeros((model.cfg.n_layers, num_positions), device=model.cfg.device)
-
-    for layer in tqdm.tqdm(range(model.cfg.n_layers)):
-        for position in range(num_positions):
-            # Use functools.partial to create a temporary hook function with the position fixed
-            temp_hook_fn = partial(residual_stream_patching_hook, position=position)
-            # Run the model with the patching hook
-            patched_logits = model.run_with_hooks(corrupted_tokens, fwd_hooks=[
-                (utils.get_act_name("resid_pre", layer), temp_hook_fn)
-            ])
-            # Calculate the logit difference
-            patched_logit_diff = logits_to_logit_diff(patched_logits).detach()
-            # Store the result, normalizing by the clean and corrupted logit difference so it's between 0 and 1 (ish)
-            ioi_patching_result[layer, position] = (patched_logit_diff - corrupted_logit_diff)/(clean_logit_diff - corrupted_logit_diff)
-    token_labels = [f"{token}_{index}" for index, token in enumerate(model.to_str_tokens(clean_tokens))]
-    imshow(ioi_patching_result, x=token_labels, xaxis="Position", yaxis="Layer", title="Normalized Logit Difference After Patching Residual Stream on the IOI Task")
-
+    CLEAN_BASELINE = clean_logit_diff
+    CORRUPTED_BASELINE = corrupted_logit_diff
+    def ioi_metric(logits):
+        return (logits_to_logit_diff(logits) - CORRUPTED_BASELINE) / (CLEAN_BASELINE  - CORRUPTED_BASELINE)
+    
+    get_act_block_every_pos(model, corrupted_tokens, clean_cache, ioi_metric)
+    
 @torch.no_grad()
 def circuits():
     device = utils.get_device()
-    model = HookedTransformer.from_pretrained("qwen-7b-chat", device=device)
+    model = AutoModelForCausalLM.from_pretrained("/home/qingyu_yin/model/Qwen1.5-1.8B", torch_dtype=torch.float16).to("cuda")
+    tokenizer = AutoTokenizer.from_pretrained("/home/qingyu_yin/model/Qwen1.5-1.8B")
+    model = HookedTransformer.from_pretrained_no_processing(model_name="Qwen1.5-1.8B", hf_model=model ,dtype=torch.float16, )
     patching(model)
 
 if __name__ == "__main__":
