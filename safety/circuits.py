@@ -68,10 +68,25 @@ def get_all_head(
     )
     save_imshow(figure)
 
+def get_single_head(
+    model: HookedTransformer,
+    corrupted_tokens,
+    clean_cache,
+    ioi_metric,
+):
+    attn_head_out_all_pos_act_patch_results = pt.get_act_patch_attn_head_out_all_pos(model, corrupted_tokens, clean_cache, ioi_metric)
+    figure = imshow(attn_head_out_all_pos_act_patch_results, 
+        yaxis="Layer", 
+        xaxis="Head", 
+        title="attn_head_out Activation Patching (All Pos)",
+        return_fig=True,
+        )
+    save_imshow(figure)
+
 def patching(model: HookedTransformer):
 
-    clean_prompt = "0*(1+2-3-4-5)+1+2=3, (2-1+3)*(3+4-2-4-5-2)+1+0=1, (3+2-5)*(3-1-4+2+5+2-4)+1+0="
-    corrupted_prompt = "0*(2+1-4-3-3)+2+0=2, (1-2+1)*(2+3-3-8-4-1)+0+2=2, (4+3-7)*(1-2-5+9+1+3-2)+2+0="
+    clean_prompt = "0*(1+2-3-4-5)+1+2="
+    corrupted_prompt = "0*(2+1-4-3-3)+2+0="
     clean_tokens = model.to_tokens(clean_prompt)
     corrupted_tokens = model.to_tokens(corrupted_prompt)
 
@@ -97,7 +112,7 @@ def patching(model: HookedTransformer):
     def ioi_metric(logits):
         return (logits_to_logit_diff(logits) - CORRUPTED_BASELINE) / (CLEAN_BASELINE  - CORRUPTED_BASELINE)
     
-    get_act_block_every_pos(model, corrupted_tokens, clean_cache, ioi_metric)
+    get_single_head(model, corrupted_tokens, clean_cache, ioi_metric)
     
 @torch.no_grad()
 def circuits():
