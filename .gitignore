@@ -5,7 +5,9 @@ kv_test/__pycache__
 /logs
 /wandb
 /gated_linear_attention
+/safety/neel_plotly
 *.md
 *.sh
 *.json
+*.png
 token.txt
