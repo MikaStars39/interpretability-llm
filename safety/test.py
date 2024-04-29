@@ -5,7 +5,7 @@ from tqdm import tqdm
 from datasets import load_dataset
 from transformers import AutoModelForCausalLM, AutoTokenizer
 
-from src.generate_data import generate_sum_expressions
+from src.generate_data import generate_sum_expressions, generate_relation_problem
 
 def get_precision(
     precision: str,
@@ -199,11 +199,55 @@ def test_code(
     print(count_has_zero/test_len)
     # print(count_no_zero/test_len)
 
+@torch.no_grad()
+def test_relation(
+    model, tokenizer, precision,
+    test_len: int = 99,
+    shot_num: int = 5,
+    generation_len: int = 2,
+):
+
+    prompt = "Here are some cities expressed as A, B, C, etc. I will show some connection relations, and you need to tell me if city A and city Z are connected. Here are some examples: \n"
+    instruction = " So 'the city A and Z is connected' is "
+    answer = ""
+
+    count_has_zero = 0
+    count_no_zero = 0
+
+    for _ in tqdm(range(test_len)):
+        text_has_zero = prompt
+
+        for __ in range(shot_num):
+            question, answer = generate_relation_problem()
+            text_has_zero += question + "\n" + instruction + str(answer) + "\n"
+
+        question, answer = generate_relation_problem()
+        text_has_zero += question + "\n" + instruction
+
+        inputs = tokenizer(text_has_zero, return_tensors="pt").to("cuda")
+        outputs = model.generate(
+            inputs["input_ids"], 
+            max_new_tokens = generation_len, 
+            num_return_sequences=1, 
+            pad_token_id=tokenizer.eos_token_id
+            )
+        
+        outputs = tokenizer.decode(outputs[0], skip_special_tokens=True)[len(text_has_zero):]
+
+        # print(text_has_zero, outputs)
+
+        if str(answer) in outputs:
+            count_has_zero += 1
+
+    print("shot num:", shot_num)
+    print(count_has_zero/test_len)
+    # print(count_no_zero/test_len)
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--model_name_or_path", type=str, default="/home/qingyu_yin/model/llama-2-7b-hf")
     parser.add_argument("--tokenizer", type=str, default="/home/qingyu_yin/model/llama-2-7b-hf")
-    parser.add_argument("--data_name_or_path", type=str, default="code")
+    parser.add_argument("--data_name_or_path", type=str, default="relation")
     parser.add_argument("--context_len", type=int, default=1024)
     parser.add_argument("--epoch", type=int, default=100)
     parser.add_argument("--precision", type=str, default="fp16")
@@ -219,6 +263,8 @@ if __name__ == "__main__":
         test = test_expression
     elif args.data_name_or_path == "code":
         test = test_code
+    elif args.data_name_or_path == "relation":
+        test = test_relation
     else:
         raise ValueError("Not a valid data type")
 
