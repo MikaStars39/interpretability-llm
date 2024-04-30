@@ -3,37 +3,37 @@ import plotly.express as px
 import tqdm
 import einops
 import transformer_lens.patching as pt
+import pandas as pd
 from transformers import AutoModelForCausalLM, AutoTokenizer
-from transformer_lens import utils, HookedTransformer, FactoredMatrix
+from transformer_lens import utils, HookedTransformer, ActivationCache
 from transformer_lens.hook_points import (
     HookPoint,
 ) 
 from functools import partial
 from jaxtyping import Float
-from datetime import datetime
 from neel_plotly.plot import imshow
 
-def save_imshow(fig, filename=None):
-    current_time = datetime.now().strftime("%Y%m%d_%H%M%S")
-    if filename == None:
-        filename = f"image/{current_time}_image.png"
-    fig.write_image(filename)
+from src.draw import draw_attention_heads, save_imshow
 
-def draw_attention_heads(model, cache, tokens):
-    for layer in tqdm.tqdm(range(model.cfg.n_layers)):
-        attention_pattern = cache["pattern", layer, "attn"][0]
-        for head in range(model.cfg.n_heads):
-            head_attn = attention_pattern[head]
-            fig = imshow(
-                head_attn, 
-                xaxis="Position", yaxis="Position", 
-                x=tokens,
-                title="Layer " + str(layer) + " Head " + str(head),
-                return_fig=True,
-            )
-            save_imshow(fig, "image/head/" + "Layer" + str(layer) + "Head" + str(head) + ".png")
+def early_stop(
+    cache: ActivationCache,
+    model: HookedTransformer,
+    layer_id: int,
+    icl_ans: str,
+    real_ans: str,
+):
+    accum_resid, labels = cache.accumulated_resid(return_labels=True, apply_ln=True)
+    last_token_accum = accum_resid[:, 0, -1, :]  # layer, batch, pos, d_model
+    W_U = model.W_U
+    layers_unembedded = torch.matmul(last_token_accum, W_U)
+    print(layers_unembedded.shape)
+    sorted_indices = torch.argsort(layers_unembedded, dim=1, descending=True)
+    rank_answer = (sorted_indices == model.to_single_token(icl_ans)).nonzero(as_tuple=True)[1]
+    print(pd.Series(rank_answer.cpu(), index=labels))
+    rank_answer = (sorted_indices == model.to_single_token(real_ans)).nonzero(as_tuple=True)[1]
+    print(pd.Series(rank_answer.cpu(), index=labels))
 
-    
+
 def get_act_block_every_pos(
     model: HookedTransformer,
     corrupted_tokens,
@@ -74,6 +74,7 @@ def get_single_head(
     clean_cache,
     ioi_metric,
 ):
+
     attn_head_out_all_pos_act_patch_results = pt.get_act_patch_attn_head_out_all_pos(model, corrupted_tokens, clean_cache, ioi_metric)
     figure = imshow(attn_head_out_all_pos_act_patch_results, 
         yaxis="Layer", 
@@ -85,8 +86,8 @@ def get_single_head(
 
 def patching(model: HookedTransformer):
 
-    clean_prompt = "0*(1+2-3-4-5)+1+2="
-    corrupted_prompt = "0*(2+1-4-3-3)+2+0="
+    clean_prompt = "Calculate this: 0*(1+2-3-4-5)+0+2=2, "
+    corrupted_prompt = "Calculate this: 0*(1+2-3-4-5)+0+2=2"
     clean_tokens = model.to_tokens(clean_prompt)
     corrupted_tokens = model.to_tokens(corrupted_prompt)
 
@@ -113,13 +114,30 @@ def patching(model: HookedTransformer):
         return (logits_to_logit_diff(logits) - CORRUPTED_BASELINE) / (CLEAN_BASELINE  - CORRUPTED_BASELINE)
     
     get_single_head(model, corrupted_tokens, clean_cache, ioi_metric)
+
+def run(model: HookedTransformer):
+    clean_prompt = "Calculate this: 1+1=2, (1-1)*(1+2+3)+1+2="
+    clean_tokens = model.to_tokens(clean_prompt)[:, 1:]
+    clean_logits, clean_cache = model.run_with_cache(clean_tokens)
+    text = model.generate(clean_tokens)
+    early_stop(clean_cache, model, 0, "2", "3")
+    clean_prompt = "Calculate this: (1-1)*(1+2+3)+1+2=3, (4-3)*(1+2-1)+2+0="
+    clean_tokens = model.to_tokens(clean_prompt)[:, 1:]
+    clean_logits, clean_cache = model.run_with_cache(clean_tokens)
+    text = model.generate(clean_tokens)
+    early_stop(clean_cache, model, 0, "2", "4")
+    clean_prompt = "Calculate this: (1-1)*(1+2+3)+1+2=3, (4-3)*(1+2-1)+2+0=4, (27-26+1)*(2342-6+324-3)+1+1=2, (34-65+31)*(43-2-41+55-54)+5-2="
+    clean_tokens = model.to_tokens(clean_prompt)[:, 1:]
+    clean_logits, clean_cache = model.run_with_cache(clean_tokens)
+    text = model.generate(clean_tokens)
+    early_stop(clean_cache, model, 0, "3", "5")
     
 @torch.no_grad()
 def circuits():
     device = utils.get_device()
     model = AutoModelForCausalLM.from_pretrained("/home/qingyu_yin/model/Qwen1.5-1.8B", torch_dtype=torch.float16).to("cuda")
     tokenizer = AutoTokenizer.from_pretrained("/home/qingyu_yin/model/Qwen1.5-1.8B")
-    model = HookedTransformer.from_pretrained_no_processing(model_name="Qwen1.5-1.8B", hf_model=model ,dtype=torch.float16, )
+    model = HookedTransformer.from_pretrained_no_processing(model_name="Qwen1.5-1.8B", hf_model=model, torch_dtype=torch.float16)
     patching(model)
 
 if __name__ == "__main__":
