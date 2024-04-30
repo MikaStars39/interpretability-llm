@@ -6,7 +6,7 @@ __pycache__
 /logs
 wandb
 /gated_linear_attention
-/safety/neel_plotly
+/safety/src/neel_plotly
 /safety/.ipynb_checkpoints
 /safety/image
 .idea

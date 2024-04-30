@@ -51,15 +51,24 @@ def generate_boolean_expression(num_terms=3):
     return expression_str, eval(expression_str)
 
 def generate_bool_expression(
-    num_groups: int = 2,
+    num_groups: int = 3,
+    num_terms: int = 4,
     and_false: bool = False,
     or_true: bool = False,
+    randoms: bool = False,
 ):
+    if and_false == False and or_true == False and randoms == False:
+        choice = random.choice(['False', 'True'])
+        if choice == "False":
+            and_false = True
+        else:
+            or_true = True
+    
     expression = []
 
     for _ in range(num_groups):
         # Determine the number of terms in this group
-        num_terms = random.randint(2, 4)
+        num_terms = random.randint(2, num_terms)
         sub_expr, _ = generate_boolean_expression(num_terms)
 
         # Add parentheses around the sub-expression
@@ -72,7 +81,7 @@ def generate_bool_expression(
     expression_str = ' '.join(expression)
 
     if and_false:
-        expression_str = "False and (" + expression_str + ")"
+        expression_str = "(" + expression_str + ")" + " and False"
     elif or_true:
         expression_str = expression_str + ' or True'
 
@@ -107,3 +116,51 @@ def generate_relation_problem(
         text += each[0] + " is connected with " + each[1] + "\n"
     
     return text, answer
+
+import numpy as np
+
+def generate_linear_equations(
+    num_vars: int = 2, 
+    num_equations: int = 2, 
+    num_related: int = 1,
+):
+    """
+    生成一个线性方程组以及线性相关的方程。
+
+    参数:
+    - num_vars: 变量的数量
+    - num_equations: 初始生成的独立方程的数量
+    - num_related: 要添加的与现有方程线性相关的方程数量
+
+    返回:
+    - equations: 生成的所有方程的字符串列表
+    - solutions: 对应变量的解字典
+    """
+    np.random.seed(0)  # 设置随机种子
+
+    # 生成随机整数系数矩阵
+    coeff_matrix = np.random.randint(-10, 10, (num_equations, num_vars))
+
+    # 变量名列表，如x1, x2, x3, ...
+    variables = [f"x{i + 1}" for i in range(num_vars)]
+
+    # 创建原始方程
+    equations = []
+    for row in coeff_matrix:
+        equation = " + ".join(f"{coef}*{var}" if coef != 0 else "" for coef, var in zip(row, variables)).strip("+ ").replace("+ -", "- ")
+        equation += " = 0"
+        equations.append(equation)
+
+    # 添加线性相关的方程
+    for _ in range(num_related):
+        # 随机选择一个已有方程并乘以一个随机系数生成新的方程
+        index = np.random.randint(0, num_equations)
+        multiplier = np.random.randint(1, 5)
+        new_equation = " + ".join(f"{multiplier * coef}*{var}" if multiplier * coef != 0 else "" for coef, var in zip(coeff_matrix[index], variables)).strip("+ ").replace("+ -", "- ")
+        new_equation += " = 0"
+        equations.append(new_equation)
+
+    # 所有变量假设解为0
+    solutions = {var: 0 for var in variables}
+
+    return equations, solutions

@@ -5,7 +5,7 @@ from tqdm import tqdm
 from datasets import load_dataset
 from transformers import AutoModelForCausalLM, AutoTokenizer
 
-from src.generate_data import generate_sum_expressions, generate_relation_problem
+from src.generate_data import generate_sum_expressions, generate_relation_problem, generate_bool_expression
 
 def get_precision(
     precision: str,
@@ -70,7 +70,6 @@ def build_code(inputs, range: int = 10):
     
     return inputs["code"], input_value, result
 
-@torch.no_grad()
 def test_expression(
     model, tokenizer, precision,
     test_len: int = 99,
@@ -132,7 +131,6 @@ def test_expression(
     print(count_has_zero/test_len)
     print(count_no_zero/test_len)
 
-@torch.no_grad()
 def test_code(
     model, tokenizer, precision,
     test_len: int = 99,
@@ -199,7 +197,6 @@ def test_code(
     print(count_has_zero/test_len)
     # print(count_no_zero/test_len)
 
-@torch.no_grad()
 def test_relation(
     model, tokenizer, precision,
     test_len: int = 99,
@@ -243,6 +240,51 @@ def test_relation(
     print(count_has_zero/test_len)
     # print(count_no_zero/test_len)
 
+def test_bool(
+    model, tokenizer, precision,
+    test_len: int = 199,
+    shot_num: int = 5,
+    generation_len: int = 1,
+):
+
+    prompt = "Here are some boolean expressions, you need to directly tell me the result. If it is true, print 1, else print 0. Here are some examples: \n"
+    instruction = " The result is: "
+
+    count_has_zero = 0
+    # count_no_zero = 0
+
+    for _ in tqdm(range(test_len)):
+        text_has_zero = prompt
+
+        for __ in range(shot_num):
+            question, answer = generate_bool_expression(randoms=True)
+            text_has_zero += question + "\n" + instruction + '1' if answer else '0' + "\n"
+
+        question, answer = generate_bool_expression(randoms=True)
+        text_has_zero += question + "\n" + instruction
+
+        # print(text_has_zero)
+
+        inputs = tokenizer(text_has_zero, return_tensors="pt").to("cuda")
+        outputs = model.generate(
+            inputs["input_ids"], 
+            max_new_tokens = generation_len, 
+            num_return_sequences=1, 
+            pad_token_id=tokenizer.eos_token_id
+            )
+        
+        outputs = tokenizer.decode(outputs[0], skip_special_tokens=True)[len(text_has_zero):]
+
+        # print(text_has_zero, outputs)
+
+        if ('1' if answer else '0') in outputs:
+            count_has_zero += 1
+
+    print("shot num:", shot_num)
+    print(count_has_zero/test_len)
+    # print(count_no_zero/test_len)
+
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--model_name_or_path", type=str, default="/home/qingyu_yin/model/llama-2-7b-hf")
@@ -265,13 +307,16 @@ if __name__ == "__main__":
         test = test_code
     elif args.data_name_or_path == "relation":
         test = test_relation
+    elif args.data_name_or_path == "bool":
+        test = test_bool
     else:
         raise ValueError("Not a valid data type")
 
-    for shot_num in [1, 2, 4, 8, 16, 32]:
-        test(
-            model=model,
-            tokenizer=tokenizer,
-            precision=precision,
-            shot_num=shot_num,
-        )
+    with torch.no_grad():
+        for shot_num in [0, 1, 2, 4, 8, 16, 32]:
+            test(
+                model=model,
+                tokenizer=tokenizer,
+                precision=precision,
+                shot_num=shot_num,
+            )
